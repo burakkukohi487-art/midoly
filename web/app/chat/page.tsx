@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import Navigation from "../components/navigation"
+import { useState } from "react";
+import Navigation from "../components/navigation";
 
 type ChatType = "talk" | "group";
 
