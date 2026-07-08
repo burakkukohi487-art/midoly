@@ -18,6 +18,7 @@ model User {
   email String @unique
   password String
   createdAt DateTime @default(now())
+  roomMemberOf RoomMember[]
 }
 
 model Session {
@@ -25,4 +26,21 @@ model Session {
   userId Int
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+model Room {
+  id Int @id @default(autoincrement())
+  name String
+  inviteCode String @unique
+  createdAt DateTime @default(now())
+  roomMembers RoomMember[]
+}
+
+model RoomMember {
+  id Int @id @default(autoincrement())
+  userId Int
+  user User @relation(fields: [userId], references: [id])
+  roomId Int
+  room Room @relation(fields: [roomId], references: [id])
+  joinedAt DateTime @default(now())
 }
