@@ -136,33 +136,42 @@ func Login(db *sql.DB) {
 	})
 }
 
+// ユーザーIDとセッション取得
+func getUserID(r *http.Request, db *sql.DB) (int, error) {
+	// ブラウザから送られてきたCookieを取り出す
+	cookie, err := r.Cookie("session_id")
+	// セッションがなければエラーを返す
+	if err != nil {
+		return 0, err
+	}
+
+	// DBでセッションIDを検索(期限切れも同時に弾く)
+	row := db.QueryRow(
+		"select userId from session where id = ? and expiresAt > ?",
+		cookie.Value, time.Now(),
+	)
+	var userID int
+	err = row.Scan(&userID)
+	// セッションが無効ならloggedIn:falseを返す
+	if err != nil {
+		return 0, err
+	}
+
+	// セッションが有効ならokを返す
+	return userID, nil
+}
+
 // セッションチェック
 func Me(db *sql.DB) {
 	http.HandleFunc("/me", func(w http.ResponseWriter, r *http.Request) {
-		// ブラウザから送られてきたCookieを取り出す
-		cookie, err := r.Cookie("session_id")
+		userID, err := getUserID(r, db)
 		// セッションがなければloggedIn:falseを返す
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]any{"loggedIn": false, "reason": "no_cookie"})
+			json.NewEncoder(w).Encode(map[string]any{"loggedIn": false})
 			return
 		}
 
-		// DBでセッションIDを検索(期限切れも同時に弾く)
-		row := db.QueryRow(
-			"select userId from session where id = ? and expiresAt > ?",
-			cookie.Value, time.Now(),
-		)
-		var userID int
-		err = row.Scan(&userID)
-		// セッションが無効ならloggedIn:falseを返す
-		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]any{"loggedIn": false, "reason": "invalid_session"})
-			return
-		}
-
-		// セッションが有効ならokを返す
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"loggedIn": true, "user_id": userID})
 	})

@@ -49,9 +49,7 @@ export default function Home() {
             });
 
             if (res.ok) {
-                const data = await res.json();
                 setError("");
-                console.log(data)
                 router.push("/map")
                 alert("登録完了")
             } else {

@@ -31,16 +31,21 @@ func main() {
 	handler.Signup(db)
 	handler.Login(db)
 	handler.Me(db)
+	handler.CreateRoom(db)
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status": "ok"}`))
 	})
 
-	// 期限切れのセッションがないかゴルーチンで監視
+	// 期限切れのセッションや招待コードがないかゴルーチンで監視
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
 		for range ticker.C {
-			db.Exec("delete from session where expires at < ?", time.Now())
+			// セッションチェック
+			db.Exec("delete from session where expiresAt < ?", time.Now())
+
+			// 招待コードチェック
+			db.Exec("update room set inviteCode = null, expiresAt = null where expiresAt < ? and inviteCode is not null", time.Now())
 		}
 	}()
 

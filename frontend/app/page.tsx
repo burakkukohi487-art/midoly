@@ -47,7 +47,6 @@ export default function Home() {
         });
 
         if (res.ok) {
-            const data = await res.json();
             setError("");
             router.push("/map")
             alert("ログイン成功")

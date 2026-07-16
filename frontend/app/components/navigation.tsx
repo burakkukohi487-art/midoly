@@ -17,7 +17,7 @@ export default function Navigation() {
     return (
         <nav className="flex justify-around bg-white py-3">
             {navItems.map(({ href, icon: Icon, label }) => {
-                const isActive = pathname === href
+                const isActive = pathname.includes(href)
                 return (
                     <Link
                         key={href}
