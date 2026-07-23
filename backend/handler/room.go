@@ -12,7 +12,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 )
 
-// Roomが存在するか確認
+// ルームが存在するか確認
 func healthRoom(roomID int, db *sql.DB) error {
 	// カラム検索
 	var dummy int
@@ -32,7 +32,7 @@ func healthRoom(roomID int, db *sql.DB) error {
 	return nil
 }
 
-// Room招待ID生成
+// ルーム招待ID生成
 func generateInviteCode(roomID int, db *sql.DB) (string, error) {
 	// ルームが存在するか確認
 	err := healthRoom(roomID, db)
@@ -95,9 +95,8 @@ func CreateRoom(db *sql.DB) {
 			return
 		}
 
-		// ルーム名取得
+		// ルーム名取得&デコード
 		var req CreateRoomRequest
-		// CreateRoomRequest構造体へデコード
 		json.NewDecoder(r.Body).Decode(&req)
 
 		// ルーム登録
@@ -132,6 +131,80 @@ func CreateRoom(db *sql.DB) {
 		json.NewEncoder(w).Encode(map[string]any{
 			"room_id":     roomID,
 			"invite_code": inviteCode,
+		})
+	})
+}
+
+// 招待コードからルームを検索
+func findRoomByInviteCode(inviteCode string, db *sql.DB) (int, error) {
+	var roomId int
+	row := db.QueryRow("select id from room where inviteCode = ? and expiresAt > ?", inviteCode, time.Now())
+	err := row.Scan(&roomId)
+
+	if err == sql.ErrNoRows {
+		return 0, errors.New("ルームが見つかりません\nルームが作成されていないか、招待コードの期限が切れています")
+	}
+
+	if err != nil {
+		return 0, err
+	}
+
+	return roomId, nil
+}
+
+// ルーム参加リクエストの構造体
+type JoinRoomRequest struct {
+	InviteCode string `json:"inviteCode"`
+}
+
+// ルーム参加
+func JoinRoom(db *sql.DB) {
+	http.HandleFunc("/room/join", func(w http.ResponseWriter, r *http.Request) {
+		// セッションからID取得
+		userID, err := getUserID(r, db)
+		if err != nil {
+			// 未ログイン
+			http.Error(w, "ログインしていません", http.StatusUnauthorized)
+			return
+		}
+
+		// 招待ID取得&デコード
+		var req JoinRoomRequest
+		json.NewDecoder(r.Body).Decode(&req)
+
+		// ルーム検索
+		roomID, err := findRoomByInviteCode(req.InviteCode, db)
+		if err != nil {
+			// ルームが見つからない場合
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// 既にルームメンバーでないかチェック
+		var dummy int
+		row := db.QueryRow("select id from roomMember where userId = ? and roomId = ?", userID, roomID)
+		err = row.Scan(&dummy)
+		if err == nil {
+			// 見つかった(既にそのグループに参加している)
+			http.Error(w, "既に参加しています", http.StatusConflict)
+			return
+		}
+		if err != sql.ErrNoRows {
+			// 見つからなかった以外のエラー
+			http.Error(w, "サーバーエラー", http.StatusInternalServerError)
+			return
+		}
+
+		// ルームメンバーに追加
+		_, err = db.Exec("insert into roommember (userId, roomId) values (?, ?)", userID, roomID)
+		if err != nil {
+			http.Error(w, "サーバーエラー", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"room_id": roomID,
 		})
 	})
 }

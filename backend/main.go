@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"midoly/backend/db"
 	"midoly/backend/handler"
 	"net/http"
@@ -26,12 +27,22 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// 招待コードの期限管理
+func cleanupExpired(db *sql.DB) {
+	// セッションチェック
+	db.Exec("delete from session where expiresAt < ?", time.Now())
+
+	// 招待コードチェック
+	db.Exec("update room set inviteCode = null, expiresAt = null where expiresAt < ? and inviteCode is not null", time.Now())
+}
+
 func main() {
 	db := db.Connect()
 	handler.Signup(db)
 	handler.Login(db)
 	handler.Me(db)
 	handler.CreateRoom(db)
+	handler.JoinRoom(db)
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status": "ok"}`))
@@ -39,13 +50,13 @@ func main() {
 
 	// 期限切れのセッションや招待コードがないかゴルーチンで監視
 	go func() {
+		// サーバー起動時に招待コードチェック
+		cleanupExpired(db)
+
+		// サーバー起動後は1時間おきにチェック
 		ticker := time.NewTicker(1 * time.Hour)
 		for range ticker.C {
-			// セッションチェック
-			db.Exec("delete from session where expiresAt < ?", time.Now())
-
-			// 招待コードチェック
-			db.Exec("update room set inviteCode = null, expiresAt = null where expiresAt < ? and inviteCode is not null", time.Now())
+			cleanupExpired(db)
 		}
 	}()
 

@@ -13,6 +13,7 @@ export default function Home() {
 
     const handleRoomCreate = async () => {
         if (!roomName) return;
+        
         const res = await fetch("http://localhost:8080/room/create", {
             method: "POST",
             headers: { "Content-Type": "application/json" },

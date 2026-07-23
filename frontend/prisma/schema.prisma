@@ -44,4 +44,5 @@ model RoomMember {
   roomId Int
   room Room @relation(fields: [roomId], references: [id])
   joinedAt DateTime @default(now())
+  @@unique([userId, roomId])
 }
